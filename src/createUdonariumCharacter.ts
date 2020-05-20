@@ -23,7 +23,7 @@ import { CharacterZipFlieCreator } from "./utils/CharacterZipFlieCreator"
 
 //read file in memory
 
-export async function exec(id: string): Promise<string | null> {
+export async function exec(id: string): Promise<[string,string | null] | null> {
   const siteUrl = `http://dndjp.sakura.ne.jp/OUTPUT.php?ID=${id}`
 
   let response = null;
@@ -294,9 +294,10 @@ export async function exec(id: string): Promise<string | null> {
     character.addDetail(spellSection);
 
     character.chatpallette = new ChatPallette("DungeonsAndDoragons", await getChatPallette(`http://dndjp.sakura.ne.jp/CREATECP.php?ID=${id}`));
-    const creator = new CharacterZipFlieCreator(character, imageurl, "/tmp/")
+    const creator = new CharacterZipFlieCreator(character, imageurl, "/tmp/out/")
     const fileName = await creator.createZipFile()
-    return fileName
+    const imageFile = await creator.getImageHashSHA256()
+    return [fileName,imageFile]
 
   } catch (e) {
     console.error(e)

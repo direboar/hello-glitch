@@ -13,9 +13,10 @@ exports.createUdonariumCharacter = functions.https.onRequest(async (request, res
   cors(request, response, async () => {
     try {
       const id = request.body.data.id
-
-      const fileName = await exec(id)
-      if (!fileName) {
+console.log("hoge")
+      initOutDir()
+      const outputFileInfo = await exec(id)
+      if (!outputFileInfo) {
         //CORSモジュールを使用しない場合、functionsが返すBodyの形式をエミュレートしないとうまく返却されない。
         //@see https://firebase.google.com/docs/functions/callable-reference?hl=ja#failure_response_to_encode
         response.status(404).json({
@@ -36,11 +37,11 @@ exports.createUdonariumCharacter = functions.https.onRequest(async (request, res
       const bucket = admin.storage().bucket("dnd5e-characters")
 
       // const bucket = new Storage().bucket("dnd5e")    
-      const file = fileName.replace("/tmp/", "")
+      const file = outputFileInfo[0].replace("/tmp/", "")
       // console.log("xx")
       // console.log(`${file}`)
       // console.log(fileName)
-      const uploadResponse = await bucket.upload(fileName, {
+      const uploadResponse = await bucket.upload(outputFileInfo[0], {
         destination: `dnd5e/characters/${file}`,
         metadata: {
           contentType: 'application/zip',
@@ -58,10 +59,10 @@ exports.createUdonariumCharacter = functions.https.onRequest(async (request, res
         }
       }
       response.send(JSON.stringify(responseJson));
-      initOutDir("/tmp/")
+      deleteFile("/tmp/out",outputFileInfo)
     } catch (error) {
       console.error(error)
-      initOutDir("/tmp/")
+      // deleteFile("/tmp/out")
       response.status(500).json({
         error: {
           message : "システムエラーが発生しました",
@@ -79,18 +80,28 @@ exports.createUdonariumCharacter = functions.https.onRequest(async (request, res
 });
 
 
-function initOutDir(dir: string): void {
-  fs.readdir(dir, function (err, files) {
-    if (err) {
-      throw err;
+function deleteFile(dir: string,files : [string,string|null]): void {
+  files.forEach(file=>{
+    if(file){
+      fs.unlinkSync(file)
     }
-    files.forEach(function (file) {
-      fs.unlink(`${dir}/${file}`, function (err) {
-        if (err) {
-          throw (err);
-        }
-        console.log(`deleted ${file}`);
-      });
-    });
-  });
+  })
+  // fs.readdir(dir, function (err, files) {
+  //   if (err) {
+  //     throw err;
+  //   }
+  //   files.forEach(function (file) {
+  //     fs.unlink(`${dir}/${file}`, function (err) {
+  //       if (err) {
+  //         throw (err);
+  //       }
+  //       console.log(`deleted ${file}`);
+  //     });
+  //   });
+  // });
+}
+
+function initOutDir(){
+  const ret = fs.mkdirSync("/tmp/out",{ recursive: true })
+  console.log(ret)
 }

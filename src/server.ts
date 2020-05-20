@@ -17,8 +17,9 @@ app.post("/udonarium/createCharacter", async (request: any, response: any) => {
   try {
     console.log(request.body)
     const id = request.body.data.id
-    const fileName = await exec(id)
-    if (!fileName) {
+    initOutDir()
+    const outputFileInfo = await exec(id)
+    if (!outputFileInfo) {
       //CORSモジュールを使用しない場合、functionsが返すBodyの形式をエミュレートしないとうまく返却されない。
       //@see https://firebase.google.com/docs/functions/callable-reference?hl=ja#failure_response_to_encode
       response.status(404).json({
@@ -61,11 +62,11 @@ app.post("/udonarium/createCharacter", async (request: any, response: any) => {
     //   }
     // }
     // response.send(JSON.stringify(responseJson));
-    response.json({ id: id, file: fileName });
-    initOutDir("/tmp/")
+    response.json({ id: id, file: outputFileInfo[0] });
+    deleteFile("/tmp/", outputFileInfo)
   } catch (error) {
     console.error(error)
-    initOutDir("/tmp/")
+    //initOutDir("/tmp/")
     response.status(500).json({
       error: {
         message: "システムエラーが発生しました",
@@ -86,18 +87,18 @@ const listener = app.listen(process.env.PORT, () => {
   console.log("Your app is listening on port " + listener.address().port);
 });
 
-function initOutDir(dir: string): void {
-  fs.readdir(dir, function (err, files) {
-    if (err) {
-      throw err;
-    }
-    files.forEach(function (file) {
-      fs.unlink(`${dir}/${file}`, function (err) {
-        if (err) {
-          throw (err);
-        }
-        console.log(`deleted ${file}`);
-      });
-    });
-  });
+function deleteFile(dir: string, files: [string, string | null]): void {
+  fs.unlinkSync(files[0])
+  console.log(files[0])
+  const xml = files[0].replace(/\.zip$/,".xml")  
+  console.log(xml)
+  fs.unlinkSync(xml)
+  if(files[1]){
+    fs.unlinkSync(files[1])
+  }
+}
+
+function initOutDir() {
+  const ret = fs.mkdirSync("/tmp/out", { recursive: true })
+  console.log(ret)
 }
