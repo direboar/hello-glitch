@@ -12,14 +12,14 @@ const {
 import { UdonariumCharacter, Common, Detail, NormalResource, NumberResource, ContainerItem, ChatPallette, NoteResource } from "./utils/UdonariumCharacter"
 import { CharacterZipFlieCreator } from "./utils/CharacterZipFlieCreator"
 
-(async () => {
-  try {
-    const ret = await exec("9342")
-    console.log(ret)
-  } catch (error) {
-    console.log(error)
-  }
-})()
+// (async () => {
+//   try {
+//     const ret = await exec("9342")
+//     console.log(ret)
+//   } catch (error) {
+//     console.log(error)
+//   }
+// })()
 
 //read file in memory
 
