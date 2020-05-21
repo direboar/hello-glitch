@@ -9,10 +9,12 @@ import { exec, CreateResult } from "./createUdonariumCharacter"
 
 const app = express();
 
+// corsモジュールで試したら応答なしになった。とりあえず削除。
 // app.use(cors);
 app.use(function (req, res, next) {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  //以下に含めないと、CORS承認後のレスポンスヘッダにContent-Dispositionが返却されない。
   res.header("Access-Control-Expose-Headers", "Content-Disposition")
   next();
 });
