@@ -23,7 +23,7 @@ import { CharacterZipFlieCreator } from "./utils/CharacterZipFlieCreator"
 
 //read file in memory
 
-export async function exec(id: string): Promise<[string,string | null] | null> {
+export async function exec(id: string): Promise<CreateResult | null> {
   const siteUrl = `http://dndjp.sakura.ne.jp/OUTPUT.php?ID=${id}`
 
   let response = null;
@@ -294,10 +294,10 @@ export async function exec(id: string): Promise<[string,string | null] | null> {
     character.addDetail(spellSection);
 
     character.chatpallette = new ChatPallette("DungeonsAndDoragons", await getChatPallette(`http://dndjp.sakura.ne.jp/CREATECP.php?ID=${id}`));
-    const creator = new CharacterZipFlieCreator(character, imageurl, "/tmp/out/")
+    const creator = new CharacterZipFlieCreator(character, imageurl, "/tmp/out/",true)
     const fileName = await creator.createZipFile()
     const imageFile = await creator.getImageHashSHA256()
-    return [fileName,imageFile]
+    return new CreateResult(fileName,name,imageFile);
 
   } catch (e) {
     console.error(e)
@@ -329,4 +329,19 @@ async function getChatPallette(url: string) {
   const dom = new JSDOM(body, { contentType: "text/html" })
   const retVal = dom.window.document.querySelector('textarea').textContent.trim()
   return retVal
+}
+
+export class CreateResult{
+  public zipFileName : string
+  public imageFileName : string | null
+  public characterName : string
+  constructor(zipFileName : string,characterName : string,imageFileName : string | null = null){
+    this.zipFileName = zipFileName
+    this.characterName = characterName
+    this.imageFileName = imageFileName
+  }
+
+  public get xmlFileName() : string{
+    return `${this.characterName}.xml`
+  }
 }

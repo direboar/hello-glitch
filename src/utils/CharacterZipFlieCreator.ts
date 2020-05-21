@@ -1,6 +1,7 @@
 import * as fs from 'fs'
 import * as crypto from 'crypto'
 import axios from 'axios'
+const { v4: uuidv4 } = require('uuid');
 
 import { UdonariumCharacter } from "./UdonariumCharacter"
 import { UdonariumCharacter2XML } from "./UdonariumCharacter2XML"
@@ -14,18 +15,21 @@ class CharacterZipFlieCreator {
     private imageBinary: Buffer | null = null
     private imageHashSHA256: string | null = null
     private outdir: string
+    private random: boolean
+    private zipFileName: string | null = null
 
-    constructor(udonariumCharacter: UdonariumCharacter, imageUrl: string, outdir: string = "./out/") {
+    constructor(udonariumCharacter: UdonariumCharacter, imageUrl: string, outdir: string = "./out/", random: boolean = false) {
         this.udonariumCharacter = udonariumCharacter;
         this.imageUrl = imageUrl;
         this.outdir = outdir;
+        this.random = random
     }
 
     public async createZipFile(): Promise<string> {
         //1.urlからimageファイルを作成
         const imageHashSHA256 = await this.loadImage(this.imageUrl)
 
-        if(imageHashSHA256){
+        if (imageHashSHA256) {
             //2.imageHashを設定
             this.udonariumCharacter.imageHashSHA256 = imageHashSHA256
         }
@@ -42,7 +46,7 @@ class CharacterZipFlieCreator {
         this.imageUrl = imageUrl
         return new Promise<string>((resolve: (value?: string) => void, reject: (reason?: any) => void) => {
             axios({
-                timeout : 5000,
+                timeout: 5000,
                 method: "get",
                 url: imageUrl,
                 responseType: "arraybuffer", //bufferでとれる
@@ -56,19 +60,19 @@ class CharacterZipFlieCreator {
                 }
             }).catch((error) => {
                 //1.errormessage
-                if(error.message.startsWith("connect ECONNREFUSED")){
+                if (error.message.startsWith("connect ECONNREFUSED")) {
                     //接続できない。
                     resolve()
-                }else{
+                } else {
                     //ステータスコードで判定。
-                    if(error.response){
-                        const status : string = error.response.status.toString();
-                        if(status.startsWith("4")){
+                    if (error.response) {
+                        const status: string = error.response.status.toString();
+                        if (status.startsWith("4")) {
                             resolve()
-                        }else{
+                        } else {
                             reject(error)
                         }
-                    }else{
+                    } else {
                         reject(error)
                     }
                 }
@@ -101,28 +105,47 @@ class CharacterZipFlieCreator {
     }
 
     private async compress(xml: string): Promise<string> {
-        var output = fs.createWriteStream(`${this.outdir}${this.getZipFileName()}`);
-        const archive = archiver("zip", {
-            zlib: { level: 9 }, // Sets the compression level.
+        return new Promise<string>((resolve, reject)=>{
+            try{
+                var output = fs.createWriteStream(`${this.outdir}${this.getZipFileName()}`);
+                const archive = archiver("zip", {
+                    zlib: { level: 9 }, // Sets the compression level.
+                });
+                archive.pipe(output);
+    
+                archive.append(fs.createReadStream(`${this.outdir}${this.getXmlFileName()}`), {
+                    name: this.getXmlFileName(),
+                });
+    
+                if (this.imageBinary) {
+                    archive.append(fs.createReadStream(`${this.outdir}${this.getImageFileName()}`, {}), {
+                        name: this.getImageFileName(),
+                    });
+                }
+    
+                const outputFileName = `${this.outdir}${this.getZipFileName()}`
+                output.on('close', function() {
+                    console.log(archive.pointer() + ' total bytes');
+                    console.log('archiver has been finalized and the output file descriptor has closed.');
+                    resolve(outputFileName);
+                });
+    
+                archive.finalize();
+            }catch(error){
+                reject(error)
+            }
         });
-        archive.pipe(output);
 
-        archive.append(fs.createReadStream(`${this.outdir}${this.getXmlFileName()}`), {
-            name: this.getXmlFileName(),
-        });
-
-        if(this.imageBinary){
-            archive.append(fs.createReadStream(`${this.outdir}${this.getImageFileName()}`, {}), {
-                name: this.getImageFileName(),
-            });
-        }
-
-        await archive.finalize();
-        return `${this.outdir}${this.getZipFileName()}`
     }
 
     public getZipFileName(): string {
-        return this.formatFileName(this.udonariumCharacter.common.name, 'zip');
+        if (this.zipFileName) {
+            return this.zipFileName;
+        } else {
+            const prefix = this.random ? uuidv4() : this.udonariumCharacter.common.name;
+            this.zipFileName = this.formatFileName(prefix, 'zip');
+            return this.zipFileName;
+        }
     }
     public getXmlFileName(): string {
         return this.formatFileName(this.udonariumCharacter.common.name, 'xml');

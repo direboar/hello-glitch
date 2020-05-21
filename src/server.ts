@@ -1,11 +1,21 @@
 // server.js
 // where your node app starts
 
-const express = require("express");
+import express from 'express'
 const bodyParser = require('body-parser');
-const app = express();
+const cors = require('cors')
 import * as fs from 'fs'
-import { exec } from "./createUdonariumCharacter"
+import { exec, CreateResult } from "./createUdonariumCharacter"
+
+const app = express();
+
+// app.use(cors);
+app.use(function (req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  res.header("Access-Control-Expose-Headers", "Content-Disposition")
+  next();
+});
 
 app.use(bodyParser.urlencoded({
   extended: true
@@ -13,60 +23,39 @@ app.use(bodyParser.urlencoded({
 app.use(bodyParser.json());
 
 // send the default array of dreams to the webpage
-app.post("/udonarium/createCharacter", async (request: any, response: any) => {
+app.get("/activate", (request, response) => {
+  response.send("activate");
+})
+
+app.post("/cleanDir", (request, response) => {
+  clearDir("/tmp/out")
+  response.send("ok");
+})
+
+app.post("/udonarium/createCharacter", async (request, response) => {
   try {
     console.log(request.body)
     const id = request.body.data.id
     initOutDir()
-    const outputFileInfo = await exec(id)
-    if (!outputFileInfo) {
-      //CORSモジュールを使用しない場合、functionsが返すBodyの形式をエミュレートしないとうまく返却されない。
-      //@see https://firebase.google.com/docs/functions/callable-reference?hl=ja#failure_response_to_encode
+    const result = await exec(id)
+    if (!result) {
       response.status(404).json({
-        error: {
-          details: {
-            id: id,
-            message: "指定されたIDが誤っています。"
-          }
+        details: {
+          id: id,
+          message: "指定されたIDが誤っています。"
         }
       }).end()
       return
-      //CORSモジュールを使用した場合、HttpsErrorをスローするとCORSモジュールによる解決が行われなくなる。
-      // throw new functions.https.HttpsError("not-found", "指定されたIDが誤っています。", {
-      //   id: id,
-      //   detail : ""
-      // });      
     }
-    // const bucket = admin.storage().bucket("dnd5e-characters")
-
-    // // const bucket = new Storage().bucket("dnd5e")    
-    // const file = fileName.replace("/tmp/", "")
-    // // console.log("xx")
-    // // console.log(`${file}`)
-    // // console.log(fileName)
-    // const uploadResponse = await bucket.upload(fileName, {
-    //   destination: `dnd5e/characters/${file}`,
-    //   metadata: {
-    //     contentType: 'application/zip',
-    //   }
-    // })
-
-    // const downloadUrl = await uploadResponse[0].getSignedUrl({
-    //   action: 'read',
-    //   expires: moment().utc().add(1, 'minutes').format()
-    // })
-
-    // const responseJson = {
-    //   data: {
-    //     url: downloadUrl[0]
-    //   }
-    // }
-    // response.send(JSON.stringify(responseJson));
-    response.json({ id: id, file: outputFileInfo[0] });
-    deleteFile("/tmp/", outputFileInfo)
+    response.download(result.zipFileName, encodeURIComponent(result.characterName + ".zip"), (error) => {
+      if (error) {
+        console.log("error")
+        console.log(error)
+      }
+      deleteFile("/tmp/", result)
+    })
   } catch (error) {
     console.error(error)
-    //initOutDir("/tmp/")
     response.status(500).json({
       error: {
         message: "システムエラーが発生しました",
@@ -78,27 +67,43 @@ app.post("/udonarium/createCharacter", async (request: any, response: any) => {
     }).end()
 
   } finally {
-    // initOutDir("/tmp/")
+    //no op.
   }
 });
 
-// // listen for requests :)
+// const listener = app.listen(80, () => {
 const listener = app.listen(process.env.PORT, () => {
-  console.log("Your app is listening on port " + listener.address().port);
+  const address: any = listener.address()
+  if (address) {
+    console.log("Your app is listening on port " + address.port);
+  }
 });
 
-function deleteFile(dir: string, files: [string, string | null]): void {
-  fs.unlinkSync(files[0])
-  console.log(files[0])
-  const xml = files[0].replace(/\.zip$/,".xml")  
-  console.log(xml)
-  fs.unlinkSync(xml)
-  if(files[1]){
-    fs.unlinkSync(files[1])
+function deleteFile(dir: string, result: CreateResult): void {
+  fs.unlinkSync(result.zipFileName)
+  fs.unlinkSync(`/tmp/out/${result.xmlFileName}`)
+  if (result.imageFileName) {
+    fs.unlinkSync(result.imageFileName)
   }
 }
 
 function initOutDir() {
   const ret = fs.mkdirSync("/tmp/out", { recursive: true })
   console.log(ret)
+}
+
+function clearDir(dir: string): void {
+  fs.readdir(dir, function (err, files) {
+    if (err) {
+      throw err;
+    }
+    files.forEach(function (file) {
+      fs.unlink(`${dir}/${file}`, function (err) {
+        if (err) {
+          throw (err);
+        }
+        console.log(`deleted ${file}`);
+      });
+    });
+  });
 }
